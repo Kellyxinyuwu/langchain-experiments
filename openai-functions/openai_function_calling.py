@@ -1,30 +1,36 @@
+
+     
+
 # --------------------------------------------------------------
 # Import Modules
 # --------------------------------------------------------------
 
+# %%
 import os
 import json
 import openai
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
-from langchain.chat_models import ChatOpenAI
-from langchain.schema import HumanMessage, AIMessage, ChatMessage
-
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, AIMessage, ChatMessage
 
 # --------------------------------------------------------------
 # Load OpenAI API Token From the .env File
 # --------------------------------------------------------------
-
+# %%
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-
+# %%
 # --------------------------------------------------------------
-# Ask ChatGPT a Question
+# Ask ChatGPT a Question (new OpenAI SDK)
 # --------------------------------------------------------------
+from openai import OpenAI
 
-completion = openai.ChatCompletion.create(
-    model="gpt-3.5-turbo-0613",
+client = OpenAI()  # reads OPENAI_API_KEY from your env
+
+completion = client.chat.completions.create(
+    model="gpt-4o-mini",  # or another available chat model
     messages=[
         {
             "role": "user",
@@ -35,7 +41,7 @@ completion = openai.ChatCompletion.create(
 
 output = completion.choices[0].message.content
 print(output)
-
+# %%
 # --------------------------------------------------------------
 # Use OpenAI’s Function Calling Feature
 # --------------------------------------------------------------
@@ -342,3 +348,5 @@ fourth_response = llm.predict_messages(
 )
 
 print(fourth_response)
+
+# %%
