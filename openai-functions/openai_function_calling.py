@@ -18,7 +18,11 @@ from langchain_core.messages import HumanMessage, AIMessage, ChatMessage
 # Load OpenAI API Token From the .env File
 # --------------------------------------------------------------
 # %%
-load_dotenv()
+# Load .env from project root (adjust path if your .env is elsewhere)
+load_dotenv("/Users/kellywu/Desktop/langchain-experiments/.env")
+
+# Verify the key is loaded (optional - remove in production)
+print("Key loaded:", bool(os.getenv("OPENAI_API_KEY")))
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # %%
