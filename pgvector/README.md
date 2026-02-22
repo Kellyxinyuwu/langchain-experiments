@@ -31,6 +31,10 @@ This project uses **PGVector** to store document embeddings for semantic search.
 
 **Pinecone vs PGVector comparison:** The quickstart script uses **both** Pinecone and PGVector to compare them. It runs the same documents and queries against each, so you can compare a managed cloud vector DB (Pinecone) with a self-hosted open-source option (PGVector). Pinecone is optional—if `PINECONE_API_KEY` is not set, the script skips it and continues with PGVector only.
 
+**Key notes:**
+- **PGVector is open source** – Free to use, self-hosted, no vendor lock-in.
+- **Perform similar search over all data** – PGVector lets you run similarity search across your entire dataset (or across multiple collections via `PgvectorService`).
+
 You'll need: PostgreSQL, the pgvector extension, and a way to connect (we use SQLTools in Cursor).
 
 ---
