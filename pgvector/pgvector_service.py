@@ -1,35 +1,71 @@
-from langchain.embeddings.openai import OpenAIEmbeddings
+"""
+PgvectorService: Custom service for querying PGVector with raw SQL.
+
+Use this when you need:
+- Cross-collection search (search across multiple document sets)
+- Custom similarity queries with scores
+- Collection management (create, update, delete)
+"""
+
 from langchain_community.vectorstores.pgvector import (
     PGVector,
     _get_embedding_collection_store,
 )
 from langchain_core.documents import Document
+from langchain_core.embeddings import Embeddings
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
 import logging
+import os
 
 
+# LangChain's internal model for the langchain_pg_embedding table
 EmbeddingStore = _get_embedding_collection_store()[0]
 
 
+def _get_embeddings(embeddings=None) -> Embeddings:
+    """Get embeddings - use provided or fall back to OpenAI/local based on env."""
+    if embeddings is not None:
+        return embeddings
+    if os.getenv("USE_LOCAL_EMBEDDINGS", "").lower() in ("true", "1", "yes"):
+        from langchain_community.embeddings import HuggingFaceEmbeddings
+
+        return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    from langchain_openai import OpenAIEmbeddings
+
+    return OpenAIEmbeddings()
+
+
 class PgvectorService:
-    def __init__(self, connection_string):
+    """
+    Service for interacting with PGVector using SQLAlchemy and raw SQL.
+    Pass embeddings to match the model used when creating the collection.
+    """
+
+    def __init__(self, connection_string, embeddings=None):
         load_dotenv()
-        self.embeddings = OpenAIEmbeddings()
+        self.embeddings = _get_embeddings(embeddings)
         self.cnx = connection_string
         self.collections = []
         self.engine = create_engine(self.cnx)
         self.EmbeddingStore = EmbeddingStore
 
+    # --- Search ---
+
     def get_vector(self, text):
+        """Convert text to embedding vector (for similarity comparison)."""
         return self.embeddings.embed_query(text)
 
     def custom_similarity_search_with_scores(self, query, k=3):
+        """
+        Search across ALL collections using cosine similarity.
+        Returns list of (Document, score) tuples. Lower distance = higher similarity.
+        """
         query_vector = self.get_vector(query)
 
         with Session(self.engine) as session:
-            # Using cosine similarity for the vector comparison
+            # Cosine distance: 0 = identical, 2 = opposite. Order by ascending = most similar first.
             cosine_distance = self.EmbeddingStore.embedding.cosine_distance(
                 query_vector
             ).label("distance")
@@ -45,16 +81,19 @@ class PgvectorService:
                 .limit(k)
                 .all()
             )
-        # Calculate the similarity score by subtracting the cosine distance from 1 (_cosine_relevance_score_fn)
+        # Convert distance to similarity score: 1 - distance (higher = more similar)
         docs = [(Document(page_content=result[0]), 1 - result[2]) for result in results]
 
         return docs
+
+    # --- Collection Management ---
 
     def update_pgvector_collection(
         self, docs, collection_name, overwrite=False
     ) -> None:
         """
-        Create a new collection from documents. Set overwrite to True to delete the collection if it already exists.
+        Create or replace a collection. Generates embeddings and stores in langchain_pg_embedding.
+        overwrite=True: Delete existing collection first (use when refreshing data).
         """
         logging.info(f"Creating new collection: {collection_name}")
         with self.engine.connect() as connection:
@@ -68,6 +107,7 @@ class PgvectorService:
             )
 
     def get_collections(self) -> list:
+        """List all collection names in the database."""
         with self.engine.connect() as connection:
             try:
                 query = text("SELECT * FROM public.langchain_pg_collection")
@@ -79,7 +119,7 @@ class PgvectorService:
         return collections
 
     def update_collection(self, docs, collection_name):
-        """Updates a collection with data from a given blob URL."""
+        """Add or replace documents in a collection. Overwrites if collection exists."""
         logging.info(f"Updating collection: {collection_name}")
         collections = self.get_collections()
 
@@ -88,7 +128,7 @@ class PgvectorService:
             self.update_pgvector_collection(docs, collection_name, overwrite)
 
     def delete_collection(self, collection_name):
-        """Deletes a collection based on the collection name."""
+        """Remove a collection and all its embeddings from the database."""
         logging.info(f"Deleting collection: {collection_name}")
         with self.engine.connect() as connection:
             pgvector = PGVector(

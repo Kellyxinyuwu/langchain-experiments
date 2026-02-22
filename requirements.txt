@@ -1,5 +1,9 @@
 python-dotenv
 langchain
+langchain-community
+langchain-openai
+langchain-text-splitters
+sentence-transformers
 openai
 google-api-python-client # Google API
 google-search-results # SerpAPI
@@ -9,5 +13,5 @@ tiktoken
 faiss-cpu
 wikipedia
 psycopg2
-pinecone-client
+pinecone
 pgvector
